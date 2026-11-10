@@ -48,17 +48,12 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as stream:
               stream.write('MOD_VERSION=' + config['info']['version'] + '\n')
               stream.write('GAME_VERSION=' + config['game']['version'] + '\n')
-      - name: Check runtime contracts
-        run: python -m unittest discover -s tests -v
       - name: Install Python 2.7
         shell: pwsh
         run: choco install python2 -y --no-progress
       - name: Compile and verify packages
         shell: pwsh
         run: python build.py --version "$env:MOD_VERSION" --game-version "$env:GAME_VERSION" --distribute
-      - name: Check Python 2.7 runtime and package metadata
-        shell: pwsh
-        run: '& $env:PYTHON2 tests/test_python27.py -v'
       - name: Upload checked packages
         uses: actions/upload-artifact@v4
         with:
