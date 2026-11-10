@@ -4,31 +4,50 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Test mod version
+        description: Mod version
         required: true
-        default: '0.1.0-test1'
+        default: '0.1.0'
         type: string
       game_version:
         description: World of Tanks version
         required: true
         default: '2.4.1.1'
         type: string
+  push:
+    branches: [main]
+    paths: [build.json]
 
 permissions:
   contents: write
 
 jobs:
   build-and-release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Release INQ Multik v')
     runs-on: windows-latest
     env:
       PYTHON2: C:/Python27/python.exe
-      MOD_VERSION: ${{ inputs.version }}
-      GAME_VERSION: ${{ inputs.game_version }}
+      INPUT_MOD_VERSION: ${{ inputs.version }}
+      INPUT_GAME_VERSION: ${{ inputs.game_version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Validate release parameters
+        shell: python
+        run: |
+          import json
+          import os
+          import sys
+          sys.path.insert(0, os.getcwd())
+          import build
+          config = build.load_config(build.ROOT / 'build.json')
+          config['info']['version'] = os.environ.get('INPUT_MOD_VERSION') or config['info']['version']
+          config['game']['version'] = os.environ.get('INPUT_GAME_VERSION') or config['game']['version']
+          build.verify_config(config)
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as stream:
+              stream.write('MOD_VERSION=' + config['info']['version'] + '\n')
+              stream.write('GAME_VERSION=' + config['game']['version'] + '\n')
       - name: Check runtime contracts
         run: python -m unittest discover -s tests -v
       - name: Install Python 2.7
@@ -37,7 +56,7 @@ jobs:
       - name: Compile and verify packages
         shell: pwsh
         run: python build.py --version "$env:MOD_VERSION" --game-version "$env:GAME_VERSION" --distribute
-      - name: Check Python 2.7 method binding
+      - name: Check Python 2.7 runtime and package metadata
         shell: pwsh
         run: '& $env:PYTHON2 tests/test_python27.py -v'
       - name: Upload checked packages
@@ -47,15 +66,15 @@ jobs:
           path: build/*
           if-no-files-found: error
           compression-level: 0
-      - name: Publish test prerelease
+      - name: Publish release
         uses: ncipollo/release-action@v1.14.0
         with:
-          tag: v${{ inputs.version }}
+          tag: v${{ env.MOD_VERSION }}
           commit: ${{ github.sha }}
-          name: INQ Multik v${{ inputs.version }}
+          name: INQ Multik v${{ env.MOD_VERSION }}
           artifacts: build/*.wotmod,build/*.zip
-          prerelease: true
-          makeLatest: false
-          generateReleaseNotes: true
-          body: Test build. API contract tests and Python 2.7 compilation do not replace validation in World of Tanks.
+          artifactErrorsFailBuild: true
+          prerelease: false
+          makeLatest: true
+          bodyFile: RELEASE_NOTES.md
 

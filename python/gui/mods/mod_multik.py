@@ -12,7 +12,7 @@ import logging
 import re
 
 MOD_ID = 'me.inq.multik'
-MOD_VERSION = '0.1.0-test1'
+MOD_VERSION = '0.1.0'
 _logger = logging.getLogger(MOD_ID)
 
 # Verified against IzeBerg/wot-src EU/NA/ASIA 2.4.1.1 scripts_config.xml.
@@ -31,6 +31,8 @@ _SERVERS = tuple(
      'wotasia1-2.login.wargaming.net:20016', 501),
 )
 _REALMS = ('EU', 'NA', 'ASIA')
+_HOST_MAP_FIELDS = ('_urlMap', '_nameMap', '_peripheryMap')
+_TOKEN_REALM_KEY = 'multik_token_realm'
 _VERSION = re.compile(r'^(eu|na|asia)_([0-9]+(?:\.[0-9]+){2,4}(?:_[0-9]+)?)$')
 _DOMAINS = (
     ('EU', re.compile(r'^login2?\.p[0-9]+\.worldoftanks\.eu$')),
@@ -57,6 +59,7 @@ _logged_on_subscription = False
 
 
 def _region(endpoint):
+    """Recognize official login endpoints, including their token aliases."""
     if not isinstance(endpoint, _TEXT):
         return None
     host = endpoint.lower().rsplit(':', 1)[0]
@@ -67,6 +70,7 @@ def _region(endpoint):
 
 
 def _client_version(version, realm):
+    """Keep the numeric client version intact for the stock compatibility check."""
     if realm not in _REALMS or not isinstance(version, _TEXT):
         return version
     match = _VERSION.match(version)
@@ -76,6 +80,7 @@ def _client_version(version, realm):
 
 
 def _hook(cls, name, handler):
+    """Preserve the existing call chain and deactivate retained wrappers on fini."""
     original = getattr(cls, name)
     active = [True]
 
@@ -138,7 +143,7 @@ def _remove_servers():
         if id(item) not in removed:
             positions[old_index] = len(kept)
             kept.append(item)
-    for field in ('_urlMap', '_nameMap', '_peripheryMap'):
+    for field in _HOST_MAP_FIELDS:
         old_map = getattr(_hosts, field)
         new_map = dict((key, positions[index]) for key, index in old_map.items()
                        if index in positions)
@@ -164,6 +169,7 @@ def _host_list(base, self, hosts, *args, **kwargs):
 
 
 def _choose_auto():
+    """Choose within one realm using stock availability and cached ping data."""
     realm = _last_realm or _base_realm
     candidates = [host for host in _hosts.hosts() if _region(host.url) == realm]
     if not candidates:
@@ -251,7 +257,7 @@ def _reject(connection, status):
 def _login(base, self, email, password, serverName,
            isSocialToken2Login, rememberUser):
     preferences = self._preferences
-    previous = (preferences.get('multik_token_realm') or
+    previous = (preferences.get(_TOKEN_REALM_KEY) or
                 _region(preferences.get('server_name')) or _base_realm)
     serverName = _resolve(serverName)
     target = _region(serverName)
@@ -277,7 +283,7 @@ def _remember_region(responseData):
     # Subscribe after it instead of patching a method the event already captured.
     realm = getattr(_connection, '_multik_realm', None)
     if realm in _REALMS:
-        _login_manager._preferences['multik_token_realm'] = realm
+        _login_manager._preferences[_TOKEN_REALM_KEY] = realm
         _login_manager.writePreferences()
 
 
@@ -313,6 +319,7 @@ def _refresh_ping():
 
 
 def init():
+    """Validate the client boundary before registering servers and hooks."""
     global _enabled, _hosts, _connection, _login_manager, _predefined
     global _base_realm, _last_realm
     global _disconnect_subscription, _logged_on_subscription
@@ -337,7 +344,7 @@ def init():
         _login_manager = dependency.instance(ILoginManager)
         if not _hosts._isDataLoaded:
             raise RuntimeError('Native server registry is not initialized')
-        for field in ('_hosts', '_urlMap', '_nameMap', '_peripheryMap'):
+        for field in ('_hosts',) + _HOST_MAP_FIELDS:
             if not hasattr(_hosts, field):
                 raise RuntimeError('Unsupported native server registry: ' + field)
         requester = _hosts._PreDefinedHostList__pingRequester
@@ -347,7 +354,7 @@ def init():
                 raise RuntimeError('Unsupported native ping interface: ' + field)
 
         preferences = _login_manager._preferences
-        remembered = preferences.get('multik_token_realm')
+        remembered = preferences.get(_TOKEN_REALM_KEY)
         _last_realm = (_region(preferences.get('server_name')) or
                        (remembered if remembered in _REALMS else _base_realm))
         hooks = (
@@ -379,6 +386,7 @@ def init():
 
 
 def fini():
+    """Remove only Multik's changes; leave later third-party hooks intact."""
     global _enabled, _ping_subscription, _disconnect_subscription, _logged_on_subscription
     was_enabled = _enabled
     _enabled = False

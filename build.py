@@ -52,7 +52,7 @@ def verify_config(config):
         raise ValueError('Game version must use X.X.X.X format')
 
 
-def compile_python(executable, destination):
+def compile_python(executable, destination, mod_version):
     if not SOURCE.is_file():
         raise FileNotFoundError(SOURCE)
     version = subprocess.check_output(
@@ -61,11 +61,19 @@ def compile_python(executable, destination):
     ).decode('ascii').strip()
     if version != '2.7':
         raise RuntimeError('WoT requires Python 2.7 bytecode; compiler is %s' % version)
+    # Stamp only the staged copy so manual release versions match runtime logs.
+    source, count = re.subn(
+        r"(?m)^MOD_VERSION = '[^']*'$", "MOD_VERSION = %r" % mod_version,
+        SOURCE.read_text(encoding='utf-8'))
+    if count != 1:
+        raise RuntimeError('Expected exactly one runtime MOD_VERSION declaration')
+    staged_source = destination.with_suffix('.py')
+    staged_source.write_text(source, encoding='utf-8')
     subprocess.check_call([
         executable, '-c',
         'import py_compile,sys; '
         'py_compile.compile(sys.argv[1],sys.argv[2],sys.argv[3],doraise=True)',
-        str(SOURCE), str(destination), ARCHIVE_SCRIPT
+        str(staged_source), str(destination), ARCHIVE_SCRIPT
     ])
     data = destination.read_bytes()
     if data[:4] != PY27_MAGIC:
@@ -109,7 +117,8 @@ def build(config, executable, distribute=False):
     package = output / filename
     # Compile in staging; never leave .pyc files next to tracked sources.
     with tempfile.TemporaryDirectory(prefix='multik-build-') as staging:
-        bytecode = compile_python(executable, Path(staging) / 'mod_multik.pyc')
+        bytecode = compile_python(executable, Path(staging) / 'mod_multik.pyc',
+                                  config['info']['version'])
         staged_package = Path(staging) / filename
         with zipfile.ZipFile(staged_package, 'w') as archive:
             write_entry(archive, 'meta.xml', metadata(config['info']))
@@ -153,3 +162,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+
