@@ -335,6 +335,12 @@ class MultikTests(unittest.TestCase):
         self.w.registry.autoLoginQuery(selected.append)
         self.assertEqual(selected, [na[1]])
 
+    def test_auto_restores_saved_region_when_native_preference_is_auto(self):
+        self.w.manager._preferences.update(server_name='auto.login.app:0000',
+                                          multik_token_realm='ASIA')
+        self.start()
+        self.assertEqual(self.mod._region(self.mod._choose_auto().url), 'ASIA')
+
     def test_auto_ignores_stale_ping_values_and_native_old_region_pinning(self):
         self.start()
         self.mod._resolve(self.endpoint('NA'))

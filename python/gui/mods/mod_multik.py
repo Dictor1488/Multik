@@ -347,7 +347,9 @@ def init():
                 raise RuntimeError('Unsupported native ping interface: ' + field)
 
         preferences = _login_manager._preferences
-        _last_realm = _region(preferences.get('server_name')) or _base_realm
+        remembered = preferences.get('multik_token_realm')
+        _last_realm = (_region(preferences.get('server_name')) or
+                       (remembered if remembered in _REALMS else _base_realm))
         hooks = (
             (type(_hosts), 'getSimpleHostsList', _host_list),
             (type(_hosts), 'autoLoginQuery', _auto_query),
