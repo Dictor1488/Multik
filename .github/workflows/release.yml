@@ -1,0 +1,55 @@
+name: Build and release INQ Multik
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Mod version (development scaffold is not a stable release)
+        required: true
+        default: '0.1.0-dev'
+        type: string
+      game_version:
+        description: World of Tanks version
+        required: true
+        default: '2.4.1.1'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    env:
+      PYTHON2: C:/Python27/python.exe
+      MOD_VERSION: ${{ inputs.version }}
+      GAME_VERSION: ${{ inputs.game_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python 2.7
+        shell: pwsh
+        run: choco install python2 -y --no-progress
+      - name: Compile and verify packages
+        shell: pwsh
+        run: python build.py --version "$env:MOD_VERSION" --game-version "$env:GAME_VERSION" --distribute
+      - name: Upload checked packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: multik-release
+          path: build/*
+          if-no-files-found: error
+          compression-level: 0
+      - name: Publish development prerelease
+        uses: ncipollo/release-action@v1.14.0
+        with:
+          tag: v${{ inputs.version }}
+          commit: ${{ github.sha }}
+          name: INQ Multik v${{ inputs.version }}
+          artifacts: build/*.wotmod,build/*.zip
+          prerelease: true
+          makeLatest: false
+          generateReleaseNotes: true
+          body: Development scaffold. Region switching is not implemented or tested in World of Tanks.

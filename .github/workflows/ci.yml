@@ -1,0 +1,33 @@
+name: Check INQ Multik build
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      PYTHON2: C:/Python27/python.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python 2.7
+        shell: pwsh
+        run: choco install python2 -y --no-progress
+      - name: Compile and verify WOTMOD
+        run: python build.py --distribute
+      - name: Upload checked packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: multik-build
+          path: build/*
+          if-no-files-found: error
+          compression-level: 0
