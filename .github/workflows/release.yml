@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Mod version (development scaffold is not a stable release)
+        description: Test mod version
         required: true
-        default: '0.1.0-dev'
+        default: '0.1.0-test1'
         type: string
       game_version:
         description: World of Tanks version
@@ -29,12 +29,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Check runtime contracts
+        run: python -m unittest discover -s tests -v
       - name: Install Python 2.7
         shell: pwsh
         run: choco install python2 -y --no-progress
       - name: Compile and verify packages
         shell: pwsh
         run: python build.py --version "$env:MOD_VERSION" --game-version "$env:GAME_VERSION" --distribute
+      - name: Check Python 2.7 method binding
+        shell: pwsh
+        run: '& $env:PYTHON2 tests/test_python27.py -v'
       - name: Upload checked packages
         uses: actions/upload-artifact@v4
         with:
@@ -42,7 +47,7 @@ jobs:
           path: build/*
           if-no-files-found: error
           compression-level: 0
-      - name: Publish development prerelease
+      - name: Publish test prerelease
         uses: ncipollo/release-action@v1.14.0
         with:
           tag: v${{ inputs.version }}
@@ -52,4 +57,5 @@ jobs:
           prerelease: true
           makeLatest: false
           generateReleaseNotes: true
-          body: Development scaffold. Region switching is not implemented or tested in World of Tanks.
+          body: Test build. API contract tests and Python 2.7 compilation do not replace validation in World of Tanks.
+

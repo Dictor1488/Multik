@@ -10,7 +10,8 @@
   "info": {
     "id": "me.inq.multik",
     "name": "INQ Multik",
-    "description": "World of Tanks EU/NA/ASIA region changer (project scaffold).",
-    "version": "0.1.0-dev"
+    "description": "World of Tanks EU/NA/ASIA servers in the stock login list.",
+    "version": "0.1.0-test1"
   }
 }
+
